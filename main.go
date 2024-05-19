@@ -11,5 +11,5 @@ func main(){
 }
 
 func our_handler(rw http.ResponseWriter, req *http.Request){
-	fmt.Println(req.Method)
+	fmt.Fprintf(rw, "The method you used was: %s", req.Method)
 }
