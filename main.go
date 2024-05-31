@@ -52,13 +52,16 @@ func our_handler(rw http.ResponseWriter, req *http.Request) {
 	buf := bytes.NewBuffer(byte_store)
 	io.Copy(buf, alt.Body)
 	buf2 := *buf
-	
+
 	io.Copy(rw, buf)
 	io.Copy(my_file, &buf2)
 	//rw.Header().Add("Request URL", "localhost:8080")
 }
 
 func proxy_request(req *http.Request) *http.Response{
+	//PROBLEM: The response shouldn't be what we are getting back
+	//We will need to try and fix this part before we worry about
+	//whether we are sending it back correctly to the client.
 	var err error
 	fmt.Println(req.Host, req.URL.Path)
 	req.RequestURI = ""
