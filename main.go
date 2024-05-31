@@ -1,12 +1,16 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"log"
-	"reflect"
-	"net/url"
+	"bytes"
 	"context"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"reflect"
+	"strings"
 )
 
 var addr string = "localhost:8080"
@@ -27,31 +31,64 @@ func main() {
 }
 
 func our_handler(rw http.ResponseWriter, req *http.Request) {	
-	go proxy_request(req)
-	rw.Header()["Date"] = nil
-	for k, v := range req.Header{
-		rw.Header()[k] = v
-	}
-	fmt.Fprintf(rw, "The Headers we received are as follows:\n%s\n\n\nHere are the response headers to send to you:\n%s", req.Header, rw.Header())
+	alt := proxy_request(req)
 
+	if alt == nil{
+		fmt.Fprint(rw, "There was a problem with the proxy response")
+		return
+	}
+	for k, v := range alt.Header{
+		fmt.Println(k, v)
+			rw.Header()[k] = v
+	}
+	
+	my_file, err:= os.OpenFile("/home/dermottreanor/test", os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil{
+		fmt.Printf("The file could not be opened: %v\n", err)
+	}
+	defer my_file.Close()
+
+	byte_store := []byte{}
+	buf := bytes.NewBuffer(byte_store)
+	io.Copy(buf, alt.Body)
+	buf2 := *buf
+	
+	io.Copy(rw, buf)
+	io.Copy(my_file, &buf2)
+	//rw.Header().Add("Request URL", "localhost:8080")
 }
 
-func proxy_request(req *http.Request){
+func proxy_request(req *http.Request) *http.Response{
 	var err error
+	fmt.Println(req.Host, req.URL.Path)
 	req.RequestURI = ""
-	req.URL, err = url.Parse("https://www.youtube.com/hello")
+
+	newHost := ""
+	newPath := ""
+	endHostInd := strings.Index(req.URL.Path[1:], "/")
+	if endHostInd >= 0{
+		newHost = req.URL.Path[1:endHostInd + 1]
+		newPath = req.URL.Path[endHostInd + 1:]
+	} else{
+		newHost = req.URL.Path[1:]
+	}
+	req.URL, err = url.Parse("http://www." + newHost + ".com" + newPath)
 	if err != nil{
-		fmt.Printf("PARSE ERROR, %v. TYPE %T\n\n.", err, err)
+		fmt.Printf("Parse Error when creating new response's url, %v\n", err)
+		return nil
 	}
 	req = req.Clone(context.Background())
-	req.Host = "youtube.com"
-
+	req.Host = "www." + newHost
+	fmt.Println(req.Host, req.URL.Path)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil{
-		fmt.Printf("GOT ERROR: %v. TYPE, %T\n\n", err, err)
+		fmt.Printf("Error when using incoming request to get proxy response: %v\n", err)
+		return nil
 	}
-	fmt.Printf("%s\n\n\n", resp)
+
+	fmt.Printf("%v\n", resp)
+	return resp
 }
 
 
